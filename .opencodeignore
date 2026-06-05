@@ -1,0 +1,16 @@
+# Environnements virtuels et dépendances
+venv/
+.venv/
+__pycache__/
+node_modules/
+
+# Bases de données locales et logs
+*.db
+*.sqlite3
+*.log
+data/
+
+# Fichiers compilés ou générés
+dist/
+build/
+*.pyc

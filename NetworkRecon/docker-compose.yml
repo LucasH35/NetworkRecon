@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  mongodb:
+    image: mongo:4.4
+    container_name: networkrecon-mongo
+    restart: unless-stopped
+    environment:
+      MONGODB_DATABASE: ${MONGODB_DATABASE}
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+    networks:
+      - networkrecon-internal
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: networkrecon-backend
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/${MONGODB_DATABASE}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - networkrecon-internal
+      - networkrecon-public
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: networkrecon-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - networkrecon-public
+
+volumes:
+  mongo_data:
+    driver: local
+  mongo_config:
+    driver: local
+
+networks:
+  networkrecon-internal:
+    driver: bridge
+    internal: true
+  networkrecon-public:
+    driver: bridge

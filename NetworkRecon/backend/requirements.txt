@@ -1,0 +1,22 @@
+fastapi
+uvicorn[standard]
+motor
+pymongo
+pydantic
+pydantic-settings
+python-dotenv
+python-multipart
+aiohttp
+python-nmap
+paramiko
+pysnmp
+pysmb
+reportlab
+cryptography
+
+# Tests
+pytest
+pytest-asyncio
+httpx
+mongomock-motor
+mongomock
