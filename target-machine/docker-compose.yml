@@ -1,0 +1,29 @@
+services:
+  target:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: target-lab
+    hostname: target-lab
+    restart: unless-stopped
+    privileged: false
+    cap_add:
+      - NET_ADMIN
+    networks:
+      target-network:
+        ipv4_address: 192.168.2.100
+    ports:
+      - "8080:80"
+      - "2222:22"
+      - "3307:3306"
+
+networks:
+  target-network:
+    driver: macvlan
+    driver_opts:
+      parent: eth0
+    ipam:
+      config:
+        - subnet: 192.168.2.0/24
+          gateway: 192.168.2.1
+          ip_range: 192.168.2.100/32

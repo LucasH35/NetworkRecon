@@ -1,0 +1,15 @@
+Port 22
+ListenAddress 0.0.0.0
+PermitRootLogin yes
+PasswordAuthentication yes
+PubkeyAuthentication yes
+ChallengeResponseAuthentication no
+UsePAM yes
+X11Forwarding no
+PrintMotd yes
+AcceptEnv LANG LC_*
+Subsystem sftp /usr/lib/openssh/sftp-server
+MaxAuthTries 6
+LoginGraceTime 60
+ClientAliveInterval 300
+ClientAliveCountMax 2
