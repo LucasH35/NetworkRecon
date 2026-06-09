@@ -58,6 +58,8 @@ const Router = {
             Hosts.renderDetail(id);
         } else if (section === 'vulnerabilities' && id) {
             Vulnerabilities.renderDetail(id);
+        } else if (section === 'sqlmap' && id) {
+            Sqlmap.renderDetail(id);
         } else if (this.routes[section]) {
             this.routes[section].render();
         } else {

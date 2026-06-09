@@ -89,11 +89,19 @@ class SqlmapVulnerability(BaseModel):
     is_empty: bool = Field(False, description="Si True, pas de données extraites")
 
 
+class SqlmapTable(BaseModel):
+    """Table découverte dans une base de données."""
+    name: str = Field(..., description="Nom de la table")
+    columns: list[str] = Field(default_factory=list, description="Liste des colonnes")
+    rows_count: int = Field(0, description="Nombre de lignes (estimé)")
+    sample_data: list[dict] = Field(default_factory=list, description="Échantillon de données")
+
+
 class SqlmapDatabase(BaseModel):
     """Base de données découverte."""
     name: str = Field(..., description="Nom de la base de données")
     tables_count: int = Field(0, description="Nombre de tables")
-    tables: list[str] = Field(default_factory=list, description="Liste des tables")
+    tables: list[SqlmapTable] = Field(default_factory=list, description="Tables avec colonnes")
 
 
 class SqlmapResult(BaseModel):

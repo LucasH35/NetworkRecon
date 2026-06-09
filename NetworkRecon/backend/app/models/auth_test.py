@@ -54,6 +54,7 @@ class AuthTestResult(BaseModel):
     port: int = Field(..., ge=1, le=65535, description="Port du service")
     service: ServiceType = Field(..., description="Type de service testé")
     credential_used: str = Field(..., description="Credential utilisé (masqué dans les logs)")
+    credential_plain: Optional[str] = Field(None, description="Credential réel (chiffré) pour le terminal SSH")
     success: bool = Field(..., description="Succès ou échec de l'authentification")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Horodatage du test")
     error_message: Optional[str] = Field(None, description="Message d'erreur en cas d'échec")

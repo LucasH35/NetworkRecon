@@ -20,6 +20,7 @@ from app.models.sqlmap import (
     SqlmapDatabase,
     SqlmapResult,
     SqlmapStatus,
+    SqlmapTable,
     SqlmapVulnerability,
 )
 
@@ -146,6 +147,13 @@ class SqlmapScanner:
 
             # Parser les résultats
             result = self._parse_output(campaign.target_url, raw_output)
+
+            # Si des DBs sont trouvées, énumérer les tables
+            if result.databases:
+                result.databases = await self._enumerate_tables(
+                    campaign.config, result.databases
+                )
+
             campaign.results.append(result)
 
             # Compter les vulnérabilités
@@ -440,6 +448,142 @@ class SqlmapScanner:
                     in_db_section = False
 
         return databases
+
+    async def _enumerate_tables(
+        self, config: SqlmapConfig, databases: list[SqlmapDatabase]
+    ) -> list[SqlmapDatabase]:
+        """Énumère les tables et colonnes pour chaque base de données trouvée.
+
+        Utilise --dump --start=1 --stop=5 pour récupérer tables, colonnes et échantillon.
+
+        Args:
+            config: Configuration SQLMap de base
+            databases: Liste des bases de données trouvées
+
+        Returns:
+            Liste de bases de données avec tables/colonnes remplies
+        """
+        for db in databases:
+            try:
+                logger.info("Énumération tables + colonnes pour DB: %s", db.name)
+
+                # Dump avec limites pour récupérer structure + échantillon
+                cmd = [
+                    self._sqlmap_path,
+                    "-u", config.target_url,
+                    "-D", db.name,
+                    "--dump",
+                    "--start", "1",
+                    "--stop", "5",
+                    "--batch",
+                    "--flush-session",
+                ]
+
+                if config.random_agent:
+                    cmd.append("--random-agent")
+
+                if config.cookie:
+                    cmd.extend(["--cookie", config.cookie])
+
+                if config.data:
+                    cmd.extend(["--data", config.data])
+
+                output, _ = await self._execute_sqlmap(cmd)
+                tables = self._parse_tables_with_columns(output)
+
+                if not tables:
+                    # Retry sans flush
+                    cmd_no_flush = [c for c in cmd if c != "--flush-session"]
+                    output, _ = await self._execute_sqlmap(cmd_no_flush)
+                    tables = self._parse_tables_with_columns(output)
+
+                db.tables = tables
+                db.tables_count = len(tables)
+                logger.info("DB %s: %d tables trouvées", db.name, len(tables))
+
+            except Exception as e:
+                logger.error("Erreur énumération tables pour %s: %s", db.name, e)
+
+        return databases
+
+    def _parse_tables_with_columns(self, output: str) -> list[SqlmapTable]:
+        """Parse les tables, colonnes et données depuis la sortie sqlmap --dump.
+
+        Args:
+            output: Sortie brute de sqlmap
+
+        Returns:
+            Liste de tables avec colonnes et échantillon
+        """
+        tables = []
+        current_table = None
+
+        lines = output.split("\n")
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+
+            # Pattern: Database: xxxxx  ou  Table: xxxxx
+            table_header_match = re.search(r"Table:\s+(\S+)", line)
+            if table_header_match:
+                table_name = table_header_match.group(1).strip("`\"'")
+                current_table = SqlmapTable(name=table_name)
+                tables.append(current_table)
+                i += 1
+                continue
+
+            # Pattern: [N columns]  (en-tête du dump)
+            col_header_match = re.search(r"\[(\d+)\s+columns?\]", line)
+            if col_header_match and current_table:
+                # Lignes suivantes = colonnes
+                i += 1
+                while i < len(lines):
+                    col_line = lines[i].strip()
+                    # Colonnes entre +--- et |---|
+                    if col_line.startswith("+---") or col_line.startswith("|"):
+                        if col_line.startswith("|"):
+                            cols = [c.strip() for c in col_line.split("|")[1:-1] if c.strip()]
+                            for c in cols:
+                                if c and c not in current_table.columns and not c.startswith("---"):
+                                    current_table.columns.append(c)
+                        i += 1
+                    elif col_line.startswith("[*]"):
+                        # Début des données
+                        i += 1
+                        break
+                    else:
+                        break
+                continue
+
+            # Pattern: [N rows] (fin de dump d'une table)
+            row_count_match = re.search(r"\[(\d+)\s+rows?\]", line)
+            if row_count_match and current_table:
+                current_table.rows_count = int(row_count_match.group(1))
+                i += 1
+                continue
+
+            # Pattern lignes de données (entre | ... |)
+            if line.startswith("|") and current_table and current_table.columns:
+                data = {}
+                cells = [c.strip() for c in line.split("|")[1:-1]]
+                for idx, col in enumerate(current_table.columns):
+                    if idx < len(cells):
+                        data[col] = cells[idx]
+                if data and any(v.strip() for v in data.values() if isinstance(v, str)):
+                    current_table.sample_data.append(data)
+                i += 1
+                continue
+
+            # Pattern [N entries] fin de dump
+            entries_match = re.search(r"\[(\d+)\s+entr", line)
+            if entries_match and current_table:
+                current_table.rows_count = int(entries_match.group(1))
+                i += 1
+                continue
+
+            i += 1
+
+        return tables
 
     def _detect_dbms(self, output: str) -> Optional[str]:
         """Détecte le DBMS depuis la sortie SQLMap.

@@ -175,12 +175,23 @@ async def get_host_auth_results(
 ):
     """Récupère les résultats des tests d'authentification pour un hôte."""
     db = await get_database()
-    cursor = db.auth_test_results.find({"host_ip": ip}).sort("timestamp", -1)
+    # Les résultats sont stockés imbriqués dans auth_test_campaigns.results
     results = []
+    cursor = db.auth_test_campaigns.find(
+        {"results.host_ip": ip},
+        {"results": 1, "_id": 0},
+    )
     async for doc in cursor:
-        if "_id" in doc:
-            doc["_id"] = str(doc["_id"])
-        if "campaign_id" in doc:
-            del doc["campaign_id"]
-        results.append(AuthTestResult(**doc))
+        for r in doc.get("results", []):
+            if r.get("host_ip") == ip:
+                try:
+                    # Retirer les champs non modèles
+                    r.pop("campaign_id", None)
+                    if "_id" in r:
+                        r["_id"] = str(r["_id"])
+                    results.append(AuthTestResult(**r))
+                except Exception:
+                    pass
+    # Trier par timestamp décroissant
+    results.sort(key=lambda x: x.timestamp, reverse=True)
     return results

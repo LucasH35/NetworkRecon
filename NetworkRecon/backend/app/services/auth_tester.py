@@ -334,6 +334,7 @@ class AuthTester:
                         port=port,
                         service=ServiceType.SSH,
                         credential_used=masked_cred,
+                        credential_plain=f"{username}:{password}",
                         success=False,
                         error_message=str(e),
                     ))
@@ -387,6 +388,7 @@ class AuthTester:
                 port=port,
                 service=ServiceType.SSH,
                 credential_used=masked_cred,
+                credential_plain=f"{username}:{password}",
                 success=True,
                 error_message=None,
             )
@@ -397,6 +399,7 @@ class AuthTester:
                 port=port,
                 service=ServiceType.SSH,
                 credential_used=masked_cred,
+                credential_plain=f"{username}:{password}",
                 success=False,
                 error_message="Authentification échouée",
             )
@@ -406,6 +409,7 @@ class AuthTester:
                 port=port,
                 service=ServiceType.SSH,
                 credential_used=masked_cred,
+                credential_plain=f"{username}:{password}",
                 success=False,
                 error_message=f"Erreur SSH: {e}",
             )
@@ -415,6 +419,7 @@ class AuthTester:
                 port=port,
                 service=ServiceType.SSH,
                 credential_used=masked_cred,
+                credential_plain=f"{username}:{password}",
                 success=False,
                 error_message=f"Erreur de connexion: {e}",
             )

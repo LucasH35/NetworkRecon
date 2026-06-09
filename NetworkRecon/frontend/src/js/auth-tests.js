@@ -611,7 +611,7 @@ const AuthTests = {
                             <span>${r.service.toUpperCase()}</span>
                         </div>
                         <button
-                            onclick="AuthTests.openTerminal('${this.esc(r.host_ip)}', ${r.port}, '${this.esc(username)}', '${this.esc(r.credential_used?.split(':')[1] || '')}')"
+                            onclick="AuthTests.openTerminal('${this.esc(r.host_ip)}', ${r.port}, '${this.esc(username)}', '${this.esc((r.credential_plain || '').split(':')[1] || r.credential_used?.split(':')[1] || '')}')"
                             class="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition-colors"
                         >
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -717,6 +717,13 @@ const AuthTests = {
      * Open SSH terminal modal
      */
     openTerminal(host, port, username, password) {
+        // Si pas de mot de passe réel, demander à l'utilisateur
+        if (!password || password === '***') {
+            const inputPwd = prompt(`Mot de passe SSH pour ${username}@${host}:${port} :`);
+            if (inputPwd === null) return; // Annulé
+            password = inputPwd;
+        }
+
         // Créer le modal
         const modal = document.createElement('div');
         modal.id = 'ssh-terminal-modal';

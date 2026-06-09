@@ -240,8 +240,8 @@ const Sqlmap = {
                     c.status === 'failed' ? 'bg-red-500' : 'bg-surface-500'
                 }"></span>
 
-                <div class="flex-1 min-w-0">
-                    <div class="font-medium text-white truncate">${this.esc(c.name)}</div>
+                <div class="flex-1 min-w-0 cursor-pointer" onclick="window.location.hash='#sqlmap/${c._id}'">
+                    <div class="font-medium text-white truncate hover:text-blue-400 transition-colors">${this.esc(c.name)}</div>
                     <div class="text-sm text-surface-400 font-mono truncate">${this.esc(c.target_url)}</div>
                     <div class="text-xs text-surface-500 mt-0.5">
                         ${date}
@@ -498,14 +498,74 @@ const Sqlmap = {
                         <div class="card-body p-0">
                             <div class="divide-y divide-surface-700">
                                 ${databases.map(db => `
-                                    <div class="flex items-center gap-3 p-4">
-                                        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z"/>
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6"/>
-                                        </svg>
-                                        <div>
-                                            <div class="text-white font-medium">${this.esc(db.name)}</div>
-                                            <div class="text-xs text-surface-400">${db.tables_count} table(s)</div>
+                                    <div class="p-4 space-y-3" id="db-block-${this.esc(db.name)}">
+                                        <div class="flex items-center gap-3 cursor-pointer" onclick="document.getElementById('db-tables-${this.esc(db.name)}').classList.toggle('hidden')">
+                                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z"/>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6"/>
+                                            </svg>
+                                            <div class="flex-1">
+                                                <div class="text-white font-medium">${this.esc(db.name)}</div>
+                                                <div class="text-xs text-surface-400">${db.tables_count} table(s)</div>
+                                            </div>
+                                            <svg class="w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                            </svg>
+                                        </div>
+
+                                        <div id="db-tables-${this.esc(db.name)}" class="hidden space-y-2 ml-8">
+                                            ${(db.tables || []).map(t => `
+                                                <div class="border border-surface-600 rounded-lg overflow-hidden">
+                                                    <div class="flex items-center gap-2 px-3 py-2 bg-surface-800/50 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                                                        <svg class="w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H6C4 4 3 5 3 7z"/>
+                                                        </svg>
+                                                        <span class="text-sm text-white font-medium">${this.esc(t.name)}</span>
+                                                        <span class="text-xs text-surface-500 ml-auto">${t.columns?.length || 0} col · ${t.rows_count || t.sample_data?.length || 0} lignes</span>
+                                                    </div>
+                                                    <div class="hidden">
+                                                        ${t.columns?.length ? `
+                                                            <div class="px-3 py-2 border-t border-surface-600">
+                                                                <div class="text-xs text-surface-400 mb-1">Colonnes</div>
+                                                                <div class="flex flex-wrap gap-1">
+                                                                    ${t.columns.map(col => `
+                                                                        <span class="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs font-mono">${this.esc(col)}</span>
+                                                                    `).join('')}
+                                                                </div>
+                                                            </div>
+                                                        ` : ''}
+                                                        ${t.sample_data?.length ? `
+                                                            <div class="px-3 py-2 border-t border-surface-600 overflow-x-auto">
+                                                                <div class="text-xs text-surface-400 mb-1">Échantillon (${t.sample_data.length} ligne(s))</div>
+                                                                <table class="w-full text-xs border-collapse">
+                                                                    <thead>
+                                                                        <tr>
+                                                                            ${(t.columns || Object.keys(t.sample_data[0] || {})).map(col => `
+                                                                                <th class="px-2 py-1 text-left text-surface-400 border-b border-surface-600 font-medium whitespace-nowrap">${this.esc(col)}</th>
+                                                                            `).join('')}
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        ${t.sample_data.map(row => `
+                                                                            <tr>
+                                                                                ${(t.columns || Object.keys(row)).map(col => `
+                                                                                    <td class="px-2 py-1 text-surface-300 border-b border-surface-700 font-mono whitespace-nowrap">${this.esc(row[col] || '')}</td>
+                                                                                `).join('')}
+                                                                            </tr>
+                                                                        `).join('')}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        ` : ''}
+                                                        ${!t.columns?.length && !t.sample_data?.length ? `
+                                                            <div class="px-3 py-2 border-t border-surface-600 text-xs text-surface-500 italic">Aucune donnée extraite</div>
+                                                        ` : ''}
+                                                    </div>
+                                                </div>
+                                            `).join('')}
+                                            ${db.tables_count > 0 && (!db.tables || db.tables.length === 0) ? `
+                                                <div class="text-xs text-surface-500 italic ml-2">Tables détectées mais non extractibles (autorisations insuffisantes ?)</div>
+                                            ` : ''}
                                         </div>
                                     </div>
                                 `).join('')}

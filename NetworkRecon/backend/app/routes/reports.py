@@ -24,6 +24,30 @@ async def get_current_user(
     return credentials.credentials
 
 
+@router.get(
+    "/",
+    response_model=list[Report],
+    summary="Lister les rapports",
+    description="Retourne tous les rapports générés.",
+    tags=["reports"],
+)
+async def list_reports(
+    limit: int = Query(50, ge=1, le=200, description="Nombre maximum de résultats"),
+    user: Optional[str] = Depends(get_current_user),
+):
+    """Liste tous les rapports."""
+    db = await get_database()
+    cursor = db.reports.find().sort("generated_at", -1).limit(limit)
+    reports = []
+    async for doc in cursor:
+        doc["_id"] = str(doc["_id"])
+        try:
+            reports.append(Report(**doc))
+        except Exception:
+            pass
+    return reports
+
+
 @router.post(
     "/generate",
     response_model=Report,
