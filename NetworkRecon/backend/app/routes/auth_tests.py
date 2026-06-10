@@ -159,12 +159,13 @@ async def launch_from_suggestion(
     host_ip: str = Query(..., description="IP de la cible"),
     service_type: str = Query(..., description="Type de service"),
     port: int = Query(..., description="Port du service"),
+    credentials_file: Optional[UploadFile] = File(None, description="Fichier JSON de credentials personnalisé ([{\"user\":\"...\",\"pass\":\"...\"}])"),
     background_tasks: BackgroundTasks = None,
     user: Optional[str] = Depends(get_current_user),
 ):
     """Lance une campagne brute force basée sur une suggestion."""
     from app.models.auth_test import AuthTestConfig, ServiceType
-    from fastapi import BackgroundTasks as BT
+    import tempfile, os, json
 
     db = await get_database()
 
@@ -177,10 +178,44 @@ async def launch_from_suggestion(
             detail=f"Type de service non supporté: {service_type}",
         )
 
+    # Traiter le fichier de credentials uploadé
+    saved_cred_path = None
+    if credentials_file and credentials_file.filename:
+        try:
+            content = await credentials_file.read()
+            data = json.loads(content.decode('utf-8'))
+
+            # Accepte les formats: {"user":"x","pass":"y"} OU {"username":"x","password":"y"}
+            normalized = []
+            for item in data:
+                username = item.get("username") or item.get("user") or ""
+                password = item.get("password") or item.get("pass") or ""
+                if username and password:
+                    normalized.append({"username": username, "password": password})
+
+            if not normalized:
+                raise HTTPException(status_code=400, detail="Aucun credential valide trouvé dans le fichier")
+
+            # Sauvegarder dans un fichier temporaire
+            tmp = tempfile.NamedTemporaryFile(
+                mode='w', suffix='.json', delete=False, dir='/tmp'
+            )
+            json.dump(normalized, tmp)
+            tmp.close()
+            saved_cred_path = tmp.name
+
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Le fichier n'est pas un JSON valide")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Erreur lecture fichier: {e}")
+
     config = AuthTestConfig(
         service_type=svc,
         max_attempts=5,
         delay_between=1.0,
+        credentials_file=saved_cred_path,
     )
 
     campaign = AuthCampaign(
@@ -209,6 +244,10 @@ async def launch_from_suggestion(
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Erreur campagne {campaign.id}: {e}")
+        finally:
+            # Nettoyer le fichier temporaire
+            if saved_cred_path and os.path.exists(saved_cred_path):
+                os.unlink(saved_cred_path)
 
     task = asyncio.ensure_future(_run())
     _running_tasks.append(task)

@@ -171,7 +171,7 @@ const Dashboard = {
                     <div class="card">
                         <div class="card-header">
                             <h3 class="font-semibold text-white">Campagnes récentes</h3>
-                            <a href="#campaigns" class="text-sm text-primary-400 hover:text-primary-300">Voir tout</a>
+                            <a href="#campaigns" onclick="event.preventDefault(); Router.navigate('campaigns');" class="text-sm text-primary-400 hover:text-primary-300">Voir tout</a>
                         </div>
                         <div class="card-body p-0">
                             ${recentCampaigns.length ? `
@@ -201,7 +201,7 @@ const Dashboard = {
                     <div class="card">
                         <div class="card-header">
                             <h3 class="font-semibold text-white">Top vulnérabilités</h3>
-                            <a href="#vulnerabilities" class="text-sm text-primary-400 hover:text-primary-300">Voir tout</a>
+                            <a href="#vulnerabilities" onclick="event.preventDefault(); Router.navigate('vulnerabilities');" class="text-sm text-primary-400 hover:text-primary-300">Voir tout</a>
                         </div>
                         <div class="card-body p-0">
                             ${vulnSummary.top_cves?.length ? `

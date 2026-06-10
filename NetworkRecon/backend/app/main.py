@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routes import scans, hosts, network, vulnerabilities, mitre, auth_tests, reports, dashboard, sqlmap
+from app.routes import scans, hosts, network, vulnerabilities, mitre, auth_tests, reports, dashboard, sqlmap, reset
 
 
 @asynccontextmanager
@@ -41,6 +41,7 @@ app.include_router(auth_tests.router, prefix="/api/auth-tests", tags=["auth-test
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(sqlmap.router, prefix="/api/sqlmap", tags=["sqlmap"])
+app.include_router(reset.router, prefix="/api/reset", tags=["reset"])
 
 
 @app.get("/health")

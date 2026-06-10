@@ -226,7 +226,7 @@ const Vulnerabilities = {
                 <!-- Header -->
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-4">
-                        <a href="#vulnerabilities" class="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors">
+                        <a href="#vulnerabilities" onclick="event.preventDefault(); Router.navigate('vulnerabilities');" class="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                             </svg>

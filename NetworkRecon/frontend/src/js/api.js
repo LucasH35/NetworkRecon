@@ -167,11 +167,11 @@ class NetworkReconAPI {
 
     /**
      * Create a new campaign.
-     * Backend target is hardcoded to 192.168.2.0/24.
      */
-    async createCampaign({ name, description, scan_type, ports_range }) {
+    async createCampaign({ name, description, target, scan_type, ports_range }) {
         const body = { name };
         if (description) body.description = description;
+        if (target) body.target = target;
         if (scan_type) body.scan_type = scan_type;
         if (ports_range) body.ports_range = ports_range;
 
@@ -285,8 +285,33 @@ class NetworkReconAPI {
         return this.get('/auth-tests/suggestions', params);
     }
 
-    async launchFromSuggestion(params = {}) {
-        return this.post('/auth-tests/launch-suggestion', {}, params);
+    async launchFromSuggestion(params = {}, credentialsFile = null) {
+        const queryString = new URLSearchParams({
+            host_ip: params.host_ip,
+            service_type: params.service_type,
+            port: params.port,
+        }).toString();
+
+        // Si un fichier est fourni, utiliser FormData
+        if (credentialsFile) {
+            const formData = new FormData();
+            formData.append('credentials_file', credentialsFile);
+
+            const url = `${this.baseURL}/auth-tests/launch-suggestion?${queryString}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new APIError(error.detail || `Erreur HTTP ${response.status}`, response.status);
+            }
+            return await response.json();
+        }
+
+        return this.request(`/auth-tests/launch-suggestion?${queryString}`, {
+            method: 'POST',
+        });
     }
 
     async deleteAuthTestCampaign(campaignId) {
@@ -333,6 +358,12 @@ class NetworkReconAPI {
 
     async getDashboardStats() {
         return this.get('/dashboard/stats');
+    }
+
+    // ===================== Reset API =====================
+
+    async resetAllData() {
+        return this.delete('/reset/');
     }
 
     // ===================== Health Check =====================

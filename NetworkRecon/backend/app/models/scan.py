@@ -86,7 +86,7 @@ class CampaignStatus(str, Enum):
 
 class ScanTarget(BaseModel):
     """Cible de scan réseau."""
-    ip_range: str = Field(..., description="Plage IP en CIDR (ex: 192.168.2.0/24)")
+    ip_range: str = Field(..., description="Plage IP (CIDR) ou nom de domaine (ex: 192.168.2.0/24 ou example.com)")
     authorized: bool = Field(default=False, description="Autorisation de scan obtenue")
     target_list: List[str] = Field(default_factory=list, description="Liste d'IPs spécifiques")
 
@@ -106,10 +106,15 @@ class ScanTarget(BaseModel):
     @classmethod
     def validate_ip_range(cls, v: str) -> str:
         import ipaddress
+        import re
+        # Accepte un domaine (ex: example.com, sub.example.com)
+        if re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$', v):
+            return v
+        # Accepte une plage IP CIDR
         try:
             ipaddress.ip_network(v, strict=False)
         except ValueError:
-            raise ValueError(f"Plage IP invalide: {v}")
+            raise ValueError(f"Cible invalide: {v} — attendu une plage IP (CIDR) ou un nom de domaine")
         return v
 
 
@@ -181,6 +186,7 @@ class Campaign(BaseModel):
     results: List[ScanResult] = Field(default_factory=list, description="Résultats des scans")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Date de création")
     status: CampaignStatus = Field(default=CampaignStatus.PENDING, description="Statut de la campagne")
+    progress: Optional[float] = Field(default=0.0, description="Pourcentage de progression (0-100)")
 
     model_config = {
         "populate_by_name": True,

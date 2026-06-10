@@ -5,6 +5,7 @@
 
 const Campaigns = {
     refreshInterval: null,
+    listRefreshInterval: null,
     currentCampaign: null,
 
     /**
@@ -16,9 +17,59 @@ const Campaigns = {
 
         try {
             const campaigns = await api.getCampaigns({ limit: 100 });
+            this.campaigns = campaigns;
             app.innerHTML = this.getListHTML(campaigns);
+            this.startListPolling();
         } catch (error) {
             app.innerHTML = this.getErrorHTML(error);
+        }
+    },
+
+    /**
+     * Start polling for list updates (running campaigns)
+     */
+    startListPolling() {
+        this.stopListPolling();
+
+        const runningCampaigns = this.campaigns?.filter(
+            c => c.status === 'running' || c.status === 'pending'
+        ) || [];
+
+        if (runningCampaigns.length === 0) return;
+
+        this.listRefreshInterval = setInterval(async () => {
+            try {
+                const campaigns = await api.getCampaigns({ limit: 100 });
+                this.campaigns = campaigns;
+
+                // Update each running campaign row
+                for (const c of campaigns) {
+                    const row = document.getElementById(`campaign-row-${c._id}`);
+                    if (row) {
+                        row.outerHTML = this.getCampaignRow(c);
+                    }
+                }
+
+                // Stop polling if no more running
+                const stillRunning = campaigns.filter(
+                    c => c.status === 'running' || c.status === 'pending'
+                );
+                if (stillRunning.length === 0) {
+                    this.stopListPolling();
+                }
+            } catch (e) {
+                console.error('Erreur polling liste campagnes:', e);
+            }
+        }, 3000);
+    },
+
+    /**
+     * Stop list polling
+     */
+    stopListPolling() {
+        if (this.listRefreshInterval) {
+            clearInterval(this.listRefreshInterval);
+            this.listRefreshInterval = null;
         }
     },
 
@@ -163,9 +214,11 @@ const Campaigns = {
         });
 
         const target = campaign.targets?.[0]?.ip_range || 'N/A';
+        const isRunning = campaign.status === 'running' || campaign.status === 'pending';
+        const progress = campaign.progress || 0;
 
         return `
-            <a href="#campaigns/${campaign._id}" class="flex items-center gap-4 p-4 hover:bg-surface-700/50 transition-colors cursor-pointer">
+            <a id="campaign-row-${campaign._id}" href="#campaigns/${campaign._id}" onclick="event.preventDefault(); Router.navigate('campaigns/${campaign._id}');" class="flex items-center gap-4 p-4 hover:bg-surface-700/50 transition-colors cursor-pointer">
                 <span class="status-dot ${campaign.status}"></span>
                 <div class="flex-1 min-w-0">
                     <div class="font-medium text-white truncate">${this.escapeHtml(campaign.name)}</div>
@@ -176,6 +229,14 @@ const Campaigns = {
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
+                    ${isRunning ? `
+                        <div class="flex items-center gap-2">
+                            <div class="w-16 h-1.5 bg-surface-700 rounded-full overflow-hidden">
+                                <div class="h-full bg-blue-500 rounded-full transition-all duration-500" style="width: ${progress}%"></div>
+                            </div>
+                            <span class="text-xs font-mono text-blue-400 w-10 text-right">${Math.round(progress)}%</span>
+                        </div>
+                    ` : ''}
                     <span class="status-badge status-${campaign.status}">
                         ${this.getStatusLabel(campaign.status)}
                     </span>
@@ -213,135 +274,159 @@ const Campaigns = {
         const date = new Date(campaign.created_at).toLocaleString('fr-FR');
         const target = campaign.targets?.[0]?.ip_range || 'N/A';
         const scanType = campaign.config?.scan_type || 'full';
-        const resultsCount = campaign.results?.length || 0;
         const hostsFound = campaign.results?.reduce((sum, r) => sum + (r.hosts_found?.length || 0), 0) || 0;
+
+        // Collecter tous les hôtes uniques depuis les résultats
+        const hostsMap = new Map();
+        if (campaign.results) {
+            for (const r of campaign.results) {
+                if (r.hosts_found) {
+                    for (const h of r.hosts_found) {
+                        const ip = h.ip_address || h.ip || h;
+                        if (!hostsMap.has(ip)) {
+                            hostsMap.set(ip, {
+                                ip: ip,
+                                hostname: h.hostname || '',
+                                os: h.os_detection || h.os || '',
+                                status: h.status || 'up',
+                                ports: h.ports || [],
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        const hosts = Array.from(hostsMap.values());
 
         return `
             <div class="animate-fade-in space-y-6">
-                <!-- Header -->
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-4">
-                        <a href="#campaigns" class="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                            </svg>
-                        </a>
-                        <div>
-                            <h2 class="text-xl font-bold text-white">${this.escapeHtml(campaign.name)}</h2>
-                            <div class="text-sm text-surface-400">${date}</div>
+                <!-- Back button -->
+                <div class="flex items-center gap-3">
+                    <a href="#campaigns" onclick="event.preventDefault(); Router.navigate('campaigns');" class="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                        </svg>
+                    </a>
+                    <span class="text-surface-400 text-sm">Retour aux campagnes</span>
+                </div>
+
+                <!-- Banner campagne -->
+                <div class="card border border-primary-500/30 bg-primary-500/5">
+                    <div class="card-body">
+                        <div class="flex items-start justify-between">
+                            <div class="space-y-3">
+                                <div class="flex items-center gap-3">
+                                    <h2 class="text-2xl font-bold text-white">${this.escapeHtml(campaign.name)}</h2>
+                                    <span class="status-badge status-${campaign.status}">
+                                        ${this.getStatusLabel(campaign.status)}
+                                    </span>
+                                </div>
+                                ${campaign.description ? `
+                                    <p class="text-surface-300 text-sm">${this.escapeHtml(campaign.description)}</p>
+                                ` : ''}
+                                <div class="flex flex-wrap gap-4 text-sm">
+                                    <div class="flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                        </svg>
+                                        <span class="text-surface-400">Date:</span>
+                                        <span class="text-white">${date}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/>
+                                        </svg>
+                                        <span class="text-surface-400">Cible:</span>
+                                        <span class="text-white font-mono">${this.escapeHtml(target)}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                                        </svg>
+                                        <span class="text-surface-400">Type:</span>
+                                        <span class="text-white capitalize">${this.getScanTypeLabel(scanType)}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
+                                        </svg>
+                                        <span class="text-surface-400">Hôtes:</span>
+                                        <span class="text-white font-bold">${hostsFound}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                ${campaign.status === 'running' ? `
+                                    <button onclick="Campaigns.pauseCampaign('${campaign._id || campaign.id}')" class="px-3 py-1.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-surface-300 hover:text-white transition-colors text-sm">
+                                        Pause
+                                    </button>
+                                    <button onclick="Campaigns.cancelCampaign('${campaign._id || campaign.id}')" class="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors text-sm">
+                                        Annuler
+                                    </button>
+                                ` : ''}
+                                ${campaign.status === 'paused' ? `
+                                    <button onclick="Campaigns.resumeCampaign('${campaign._id || campaign.id}')" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 transition-colors text-sm">
+                                        Reprendre
+                                    </button>
+                                ` : ''}
+                                <button onclick="Campaigns.deleteCampaign('${campaign._id || campaign.id}')" class="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors text-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        ${campaign.status === 'running' ? `
-                            <button onclick="Campaigns.pauseCampaign('${campaign._id || campaign.id}')" class="btn btn-secondary btn-sm">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                                Pause
-                            </button>
-                            <button onclick="Campaigns.cancelCampaign('${campaign._id || campaign.id}')" class="btn btn-danger btn-sm">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                                Annuler
-                            </button>
-                        ` : ''}
-                        ${campaign.status === 'paused' ? `
-                            <button onclick="Campaigns.resumeCampaign('${campaign._id || campaign.id}')" class="btn btn-success btn-sm">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                                Reprendre
-                            </button>
-                        ` : ''}
-                        <button onclick="Campaigns.deleteCampaign('${campaign._id || campaign.id}')" class="btn btn-danger btn-sm">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                        </button>
-                    </div>
                 </div>
 
-                <!-- Info Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="stat-card">
-                        <div class="stat-label">Cible</div>
-                        <div class="font-mono text-white mt-1">${this.escapeHtml(target)}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Type de scan</div>
-                        <div class="text-white mt-1 capitalize">${this.getScanTypeLabel(scanType)}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Hôtes découverts</div>
-                        <div class="stat-value text-white text-xl">${hostsFound}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Résultats</div>
-                        <div class="stat-value text-white text-xl">${resultsCount}</div>
-                    </div>
-                </div>
-
-                <!-- Progress -->
+                <!-- Progress (si en cours) -->
                 ${campaign.status === 'running' || campaign.status === 'paused' ? `
                     <div class="card">
-                        <div class="card-header">
-                            <h3 class="font-semibold text-white">Progression</h3>
-                            <span id="campaign-status-badge" class="status-badge status-${campaign.status}">
-                                <span class="status-dot ${campaign.status}"></span>
-                                ${this.getStatusLabel(campaign.status)}
-                            </span>
-                        </div>
                         <div class="card-body">
                             <div class="flex items-center gap-4">
                                 <div class="progress-bar flex-1">
-                                    <div id="campaign-progress" class="progress-bar-fill" style="width: 0%"></div>
+                                    <div id="campaign-progress" class="progress-bar-fill" style="width: ${campaign.progress || 0}%"></div>
                                 </div>
-                                <span id="campaign-progress-text" class="text-sm text-surface-400 font-medium">0%</span>
+                                <span id="campaign-progress-text" class="text-sm text-surface-400 font-medium">${Math.round(campaign.progress || 0)}%</span>
                             </div>
                         </div>
                     </div>
                 ` : ''}
 
-                <!-- Campaign Description -->
-                ${campaign.description ? `
+                <!-- Tableau des hôtes découverts -->
+                ${hosts.length > 0 ? `
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="font-semibold text-white">Description</h3>
-                        </div>
-                        <div class="card-body">
-                            <p class="text-surface-300">${this.escapeHtml(campaign.description)}</p>
-                        </div>
-                    </div>
-                ` : ''}
-
-                <!-- Results -->
-                ${campaign.results?.length ? `
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="font-semibold text-white">Résultats des scans</h3>
+                            <h3 class="font-semibold text-white">Hôtes découverts (${hosts.length})</h3>
                         </div>
                         <div class="card-body p-0">
                             <div class="overflow-x-auto">
                                 <table class="data-table">
                                     <thead>
                                         <tr>
-                                            <th>Cible</th>
-                                            <th>Hôtes</th>
-                                            <th>Début</th>
-                                            <th>Fin</th>
+                                            <th>IP</th>
+                                            <th>Hostname</th>
+                                            <th>Système d'exploitation</th>
                                             <th>Statut</th>
+                                            <th></th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${campaign.results.map(r => `
-                                            <tr>
-                                                <td class="font-mono text-sm">${this.escapeHtml(r.target)}</td>
-                                                <td>${r.hosts_found?.length || 0}</td>
-                                                <td class="text-surface-400 text-sm">${r.start_time ? new Date(r.start_time).toLocaleString('fr-FR') : '-'}</td>
-                                                <td class="text-surface-400 text-sm">${r.end_time ? new Date(r.end_time).toLocaleString('fr-FR') : '-'}</td>
-                                                <td><span class="status-badge status-${r.status}">${this.getStatusLabel(r.status)}</span></td>
+                                        ${hosts.map(h => `
+                                            <tr class="cursor-pointer hover:bg-surface-700/50" onclick="Router.navigate('hosts/${h.ip}')">
+                                                <td class="font-mono text-sm text-white font-medium">${this.escapeHtml(h.ip)}</td>
+                                                <td class="text-surface-300">${this.escapeHtml(h.hostname) || '<span class="text-surface-500 italic">N/A</span>'}</td>
+                                                <td class="text-surface-300">${this.escapeHtml(h.os) || '<span class="text-surface-500 italic">Non détecté</span>'}</td>
+                                                <td>
+                                                    <span class="status-badge status-${h.status === 'up' ? 'completed' : 'failed'}">
+                                                        ${h.status === 'up' ? 'Actif' : 'Inactif'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <svg class="w-4 h-4 text-surface-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                                    </svg>
+                                                </td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -349,7 +434,19 @@ const Campaigns = {
                             </div>
                         </div>
                     </div>
-                ` : ''}
+                ` : `
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="empty-state">
+                                <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
+                                </svg>
+                                <h3>Aucun hôte découvert</h3>
+                                <p>En attente des résultats du scan...</p>
+                            </div>
+                        </div>
+                    </div>
+                `}
             </div>
         `;
     },

@@ -139,33 +139,128 @@ const AuthTests = {
      * Launch an attack from a suggestion
      */
     async launchAttack(suggestion) {
-        const confirmed = confirm(
-            `Lancer une attaque brute force ${suggestion.service.toUpperCase()} sur ${suggestion.host_ip}:${suggestion.port} ?\n\n` +
-            `Raison: ${suggestion.reason}\n` +
-            `CVE: ${suggestion.cve_ids.join(', ') || 'Aucune'}\n\n` +
-            `Cette action enverra des tentatives de connexion.`
-        );
+        // Afficher un modal pour choisir le fichier de credentials
+        const modal = document.createElement('div');
+        modal.id = 'attack-config-modal';
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70';
+        modal.innerHTML = `
+            <div class="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-md mx-4 p-6">
+                <h3 class="text-lg font-semibold text-white mb-4">
+                    Brute force ${suggestion.service.toUpperCase()} — ${suggestion.host_ip}:${suggestion.port}
+                </h3>
 
-        if (!confirmed) return;
+                <div class="space-y-4">
+                    <div class="bg-surface-800 rounded-lg p-3 text-sm text-surface-300">
+                        <div><span class="text-surface-400">Raison:</span> ${this.esc(suggestion.reason)}</div>
+                        ${suggestion.cve_ids.length > 0 ? `
+                            <div class="mt-1"><span class="text-surface-400">CVE:</span> ${suggestion.cve_ids.join(', ')}</div>
+                        ` : ''}
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-surface-300 mb-2">Fichier de credentials (optionnel)</label>
+                        <label class="flex items-center justify-center w-full h-24 border-2 border-dashed border-surface-600 rounded-lg cursor-pointer hover:border-primary-500 hover:bg-surface-800/50 transition-colors" id="cred-dropzone">
+                            <div class="text-center">
+                                <svg class="w-8 h-8 text-surface-500 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                </svg>
+                                <span class="text-sm text-surface-400" id="cred-filename">Glissez un fichier JSON ou cliquez</span>
+                                <input type="file" id="cred-file-input" class="hidden" accept=".json">
+                            </div>
+                        </label>
+                        <p class="text-xs text-surface-500 mt-1">Format: <code>[{"user":"admin","pass":"1234"}]</code></p>
+                    </div>
+
+                    <div class="flex gap-3 justify-end pt-2">
+                        <button onclick="AuthTests.closeAttackModal()" class="px-4 py-2 text-surface-300 hover:text-white hover:bg-surface-700 rounded-lg transition-colors text-sm font-medium">
+                            Annuler
+                        </button>
+                        <button onclick="AuthTests.confirmAttack(${JSON.stringify(suggestion).replace(/"/g, '&quot;')})" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Lancer l'attaque
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Gestion du drag & drop / click
+        const dropzone = document.getElementById('cred-dropzone');
+        const fileInput = document.getElementById('cred-file-input');
+        const filenameEl = document.getElementById('cred-filename');
+
+        // Stocker la suggestion pour later
+        this._pendingSuggestion = suggestion;
+        this._pendingCredentialsFile = null;
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                filenameEl.textContent = file.name;
+                filenameEl.classList.add('text-emerald-400');
+                this._pendingCredentialsFile = file;
+            }
+        });
+
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('border-primary-500', 'bg-primary-500/10');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('border-primary-500', 'bg-primary-500/10');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-primary-500', 'bg-primary-500/10');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                filenameEl.textContent = file.name;
+                filenameEl.classList.add('text-emerald-400');
+                this._pendingCredentialsFile = file;
+                fileInput.files = e.dataTransfer.files;
+            }
+        });
+
+        // ESC pour fermer
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                this.closeAttackModal();
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+    },
+
+    closeAttackModal() {
+        const modal = document.getElementById('attack-config-modal');
+        if (modal) modal.remove();
+        this._pendingSuggestion = null;
+        this._pendingCredentialsFile = null;
+    },
+
+    /**
+     * Confirm and launch the attack
+     */
+    async confirmAttack(suggestion) {
+        this.closeAttackModal();
 
         try {
-            const btn = document.getElementById(`launch-${suggestion.host_ip}-${suggestion.port}`);
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = `
-                    <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                    Lancé...
-                `;
-            }
-
-            const campaign = await api.launchFromSuggestion({
-                host_ip: suggestion.host_ip,
-                service_type: suggestion.service,
-                port: suggestion.port,
-            });
+            const campaign = await api.launchFromSuggestion(
+                {
+                    host_ip: suggestion.host_ip,
+                    service_type: suggestion.service,
+                    port: suggestion.port,
+                },
+                this._pendingCredentialsFile
+            );
 
             // Add to campaigns list
             this.campaigns.unshift(campaign);
@@ -176,28 +271,8 @@ const AuthTests = {
                 () => this.updateCampaignProgress(campaign._id),
                 1500
             );
-
-            if (btn) {
-                btn.innerHTML = `
-                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                    </svg>
-                    Lancé
-                `;
-            }
         } catch (error) {
             alert('Erreur lors du lancement: ' + (error.message || 'Erreur inconnue'));
-            const btn = document.getElementById(`launch-${suggestion.host_ip}-${suggestion.port}`);
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = `
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Lancer
-                `;
-            }
         }
     },
 

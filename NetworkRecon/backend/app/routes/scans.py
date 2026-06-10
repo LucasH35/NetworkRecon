@@ -52,6 +52,14 @@ async def list_campaigns(
     campaigns = []
     async for doc in cursor:
         doc["_id"] = str(doc["_id"])
+        # Calculer la progression
+        total_targets = 0
+        for t in doc.get("targets", []):
+            tl = t.get("target_list", [])
+            total_targets += len(tl) if tl else 1
+        scanned_hosts = sum(len(r.get("hosts_found", [])) for r in doc.get("results", []))
+        progress = (scanned_hosts / total_targets * 100) if total_targets > 0 else 0
+        doc["progress"] = round(progress, 1)
         campaigns.append(Campaign(**doc))
     return campaigns
 
@@ -61,25 +69,25 @@ async def list_campaigns(
     response_model=Campaign,
     status_code=201,
     summary="Créer et lancer une campagne de scan",
-    description="Crée une nouvelle campagne de scan pour le réseau 192.168.2.0/24.",
+    description="Crée une nouvelle campagne de scan pour un réseau ou domaine cible.",
     tags=["scans"],
 )
 async def create_campaign(
     name: str = Body(..., description="Nom de la campagne"),
     description: Optional[str] = Body(default=None, description="Description de la campagne"),
+    target: str = Body(default="192.168.2.0/24", description="Cible: plage IP (CIDR) ou nom de domaine"),
     scan_type: str = Body(default="full", description="Type de scan: full, quick, stealth"),
     ports_range: Optional[str] = Body(default=None, description="Plage de ports (ex: 22,80,443)"),
     user: Optional[str] = Depends(get_current_user),
 ):
-    """Crée et lance une nouvelle campagne de scan pour 192.168.2.0/24."""
+    """Crée et lance une nouvelle campagne de scan pour la cible spécifiée."""
     from app.models.scan import ScanTarget, ScanConfig
 
     db = await get_database()
 
-    # Cible fixe : réseau 192.168.2.0/24, toujours autorisé
     targets_list = [
         ScanTarget(
-            ip_range="192.168.2.0/24",
+            ip_range=target,
             authorized=True,
             target_list=[],
         )

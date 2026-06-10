@@ -40,23 +40,15 @@ async def get_global_stats(
     # Compter les hôtes
     total_hosts = await db.hosts.count_documents({})
 
-    # Compter les vulnérabilités
-    vuln_pipeline = [
-        {"$unwind": "$vulnerabilities"},
-        {"$count": "total"},
-    ]
-    total_vulns = 0
-    async for doc in db.vulnerability_scans.aggregate(vuln_pipeline):
-        total_vulns = doc.get("total", 0)
+    # Compter les vulnérabilités depuis archived_vulnerabilities
+    total_vulns = await db.archived_vulnerabilities.count_documents({})
 
-    # Compter par sévérité
+    # Compter par sévérité (archived_vulnerabilities: chaque doc = 1 CVE, champ cve.severity)
     severity_pipeline = [
-        {"$unwind": "$vulnerabilities"},
-        {"$unwind": "$vulnerabilities.cve"},
-        {"$group": {"_id": "$vulnerabilities.cve.severity", "count": {"$sum": 1}}},
+        {"$group": {"_id": "$cve.severity", "count": {"$sum": 1}}},
     ]
     severity_counts = {}
-    async for doc in db.vulnerability_scans.aggregate(severity_pipeline):
+    async for doc in db.archived_vulnerabilities.aggregate(severity_pipeline):
         severity_counts[doc["_id"]] = doc["count"]
 
     # Compter les tests d'authentification
@@ -120,9 +112,7 @@ async def get_severity_distribution(
     db = await get_database()
 
     pipeline = [
-        {"$unwind": "$vulnerabilities"},
-        {"$unwind": "$vulnerabilities.cve"},
-        {"$group": {"_id": "$vulnerabilities.cve.severity", "count": {"$sum": 1}}},
+        {"$group": {"_id": "$cve.severity", "count": {"$sum": 1}}},
     ]
 
     distribution = {
@@ -133,7 +123,7 @@ async def get_severity_distribution(
         "info": 0,
     }
 
-    async for doc in db.vulnerability_scans.aggregate(pipeline):
+    async for doc in db.archived_vulnerabilities.aggregate(pipeline):
         severity = doc["_id"]
         if severity in distribution:
             distribution[severity] = doc["count"]
@@ -158,16 +148,14 @@ async def get_top_vulnerabilities(
     db = await get_database()
 
     pipeline = [
-        {"$unwind": "$vulnerabilities"},
-        {"$unwind": "$vulnerabilities.cve"},
         {
             "$group": {
                 "_id": {
-                    "cve_id": "$vulnerabilities.cve.cve_id",
-                    "severity": "$vulnerabilities.cve.severity",
+                    "cve_id": "$cve.cve_id",
+                    "severity": "$cve.severity",
                 },
                 "count": {"$sum": 1},
-                "affected_hosts": {"$addToSet": "$vulnerabilities.host_ip"},
+                "affected_hosts": {"$addToSet": "$host_ip"},
             }
         },
         {"$sort": {"count": -1}},
@@ -175,7 +163,7 @@ async def get_top_vulnerabilities(
     ]
 
     top_vulns = []
-    async for doc in db.vulnerability_scans.aggregate(pipeline):
+    async for doc in db.archived_vulnerabilities.aggregate(pipeline):
         top_vulns.append(
             {
                 "cve_id": doc["_id"]["cve_id"],

@@ -18,11 +18,11 @@ const Router = {
         'dashboard': { title: 'Dashboard', render: () => Dashboard.render() },
         'campaigns': { title: 'Campagnes de scan', render: () => Campaigns.render() },
         'hosts': { title: 'Hôtes découverts', render: () => Hosts.render() },
-        'vulnerabilities': { title: 'Vulnérabilités', render: () => Vulnerabilities.render() },
-        'mitre': { title: 'MITRE ATT&CK', render: () => Mitre.render() },
-        'auth-tests': { title: 'Tests d\'authentification', render: () => AuthTests.render() },
-        'sqlmap': { title: 'SQLMap - Injection SQL', render: () => Sqlmap.render() },
-        'reports': { title: 'Rapports', render: () => Reports.render() },
+        'vulnerabilities': { title: 'Vulnérabilités', render: () => Vulnerabilities.render(), hidden: true },
+        'mitre': { title: 'MITRE ATT&CK', render: () => Mitre.render(), hidden: true },
+        'auth-tests': { title: 'Tests d\'authentification', render: () => AuthTests.render(), hidden: true },
+        'sqlmap': { title: 'SQLMap - Injection SQL', render: () => Sqlmap.render(), hidden: true },
+        'reports': { title: 'Rapports', render: () => Reports.render(), hidden: true },
     },
 
     /**
@@ -31,6 +31,21 @@ const Router = {
     init() {
         window.addEventListener('hashchange', () => this.handleRoute());
         window.addEventListener('load', () => this.handleRoute());
+    },
+
+    /**
+     * Navigate to a hash route explicitly (reliable back/navigation)
+     */
+    navigate(hash) {
+        // Stop any running polling before navigating
+        if (typeof Campaigns !== 'undefined') Campaigns.stopListPolling();
+        if (typeof Campaigns !== 'undefined') Campaigns.stopStatusPolling();
+        if (typeof AuthTests !== 'undefined') AuthTests.stopProgressPolling();
+        if (typeof Sqlmap !== 'undefined') Sqlmap.stopProgressPolling();
+
+        window.location.hash = '#' + hash;
+        // Force re-render even if hash didn't change
+        this.handleRoute();
     },
 
     /**
@@ -77,9 +92,12 @@ const Router = {
      * Update sidebar active state
      */
     updateSidebarActive(section) {
+        const mainSections = ['dashboard', 'campaigns', 'hosts'];
+        const activeSection = mainSections.includes(section) ? section : null;
+
         document.querySelectorAll('.nav-link').forEach(link => {
             const linkSection = link.getAttribute('data-section');
-            if (linkSection === section) {
+            if (linkSection === activeSection) {
                 link.classList.add('bg-surface-800', 'text-white');
                 link.classList.remove('text-surface-300');
             } else {
@@ -167,6 +185,7 @@ function initForms() {
             const formData = new FormData(e.target);
             const name = formData.get('name');
             const description = formData.get('description');
+            const target = formData.get('target');
             const scanType = formData.get('scan_type');
             const portsRange = formData.get('ports_range');
             const authorized = formData.get('authorized') === 'on';
@@ -180,6 +199,7 @@ function initForms() {
                 await api.createCampaign({
                     name: name,
                     description: description || undefined,
+                    target: target || '192.168.2.0/24',
                     scan_type: scanType || 'full',
                     ports_range: portsRange || undefined,
                 });
@@ -246,6 +266,26 @@ async function checkAPIConnection() {
         if (text) {
             text.textContent = 'API Déconnectée';
         }
+    }
+}
+
+/**
+ * Reset all data with confirmation
+ */
+async function resetAllData() {
+    if (!confirm('⚠️ ATTENTION : Cette action va supprimer TOUTES les données (campagnes, hôtes, vulnérabilités, rapports, etc.).\n\nCette action est IRRÉVERSIBLE.\n\nÊtes-vous sûr de vouloir continuer ?')) {
+        return;
+    }
+    if (!confirm('Dernière confirmation : Voulez-vous vraiment tout supprimer ?')) {
+        return;
+    }
+
+    try {
+        await api.resetAllData();
+        alert('✅ Toutes les données ont été réinitialisées.');
+        Router.navigate('dashboard');
+    } catch (error) {
+        alert('❌ Erreur lors de la réinitialisation : ' + (error.message || 'Erreur inconnue'));
     }
 }
 

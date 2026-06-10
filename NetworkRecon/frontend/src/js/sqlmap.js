@@ -240,7 +240,7 @@ const Sqlmap = {
                     c.status === 'failed' ? 'bg-red-500' : 'bg-surface-500'
                 }"></span>
 
-                <div class="flex-1 min-w-0 cursor-pointer" onclick="window.location.hash='#sqlmap/${c._id}'">
+                <div class="flex-1 min-w-0 cursor-pointer" onclick="Router.navigate('sqlmap/${c._id}')">
                     <div class="font-medium text-white truncate hover:text-blue-400 transition-colors">${this.esc(c.name)}</div>
                     <div class="text-sm text-surface-400 font-mono truncate">${this.esc(c.target_url)}</div>
                     <div class="text-xs text-surface-500 mt-0.5">
@@ -289,7 +289,7 @@ const Sqlmap = {
         return `
             <div class="animate-fade-in max-w-2xl mx-auto">
                 <div class="flex items-center gap-3 mb-6">
-                    <a href="#sqlmap" class="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors">
+                    <a href="#sqlmap" onclick="event.preventDefault(); Router.navigate('sqlmap');" class="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                         </svg>
@@ -392,7 +392,7 @@ const Sqlmap = {
                     </div>
 
                     <div class="flex gap-3 justify-end">
-                        <a href="#sqlmap" class="btn btn-secondary">Annuler</a>
+                        <a href="#sqlmap" onclick="event.preventDefault(); Router.navigate('sqlmap');" class="btn btn-secondary">Annuler</a>
                         <button type="submit" class="btn btn-primary">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
@@ -427,7 +427,7 @@ const Sqlmap = {
         return `
             <div class="animate-fade-in space-y-4">
                 <div class="flex items-center gap-3 mb-2">
-                    <a href="#sqlmap" class="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors">
+                    <a href="#sqlmap" onclick="event.preventDefault(); Router.navigate('sqlmap');" class="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                         </svg>

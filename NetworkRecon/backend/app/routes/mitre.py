@@ -135,17 +135,16 @@ async def get_attack_paths(
     """Retourne les parcours d'attaque identifiés."""
     db = await get_database()
 
-    # Construire les parcours d'attaque depuis les mappings MITRE
+    # Construire les parcours d'attaque depuis les mappings MITRE (archived_vulnerabilities: docs plats)
     pipeline = [
-        {"$unwind": "$vulnerabilities"},
-        {"$match": {"vulnerabilities.mitre_mapping": {"$ne": None}}},
+        {"$match": {"mitre_mapping": {"$ne": None}}},
         {
             "$group": {
                 "_id": {
-                    "tactic": "$vulnerabilities.mitre_mapping.tactic",
-                    "technique": "$vulnerabilities.mitre_mapping.technique_id",
+                    "tactic": "$mitre_mapping.tactic",
+                    "technique": "$mitre_mapping.technique_id",
                 },
-                "hosts": {"$addToSet": "$vulnerabilities.host_ip"},
+                "hosts": {"$addToSet": "$host_ip"},
                 "count": {"$sum": 1},
             }
         },
@@ -154,7 +153,7 @@ async def get_attack_paths(
 
     paths = []
     path_id = 1
-    async for doc in db.vulnerability_scans.aggregate(pipeline):
+    async for doc in db.archived_vulnerabilities.aggregate(pipeline):
         paths.append({
             "path_id": f"path_{path_id:03d}",
             "name": f"{doc['_id']['tactic']} via {doc['_id']['technique']}",

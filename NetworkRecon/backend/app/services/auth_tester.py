@@ -71,6 +71,11 @@ class AuthTester:
     DEFAULT_CREDENTIALS: list[dict] = [
         # Credentials ciblés
         {"username": "lucash", "password": "Bonjour2025*"},
+        # Target machine (192.168.2.100)
+        {"username": "root", "password": "target2025"},
+        {"username": "admin", "password": "admin2025"},
+        {"username": "deploy", "password": "deploy2025"},
+        {"username": "webapp", "password": "webapp2025"},
         # Admin / root classiques
         {"username": "admin", "password": "admin"},
         {"username": "admin", "password": "password"},
