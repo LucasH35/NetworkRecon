@@ -157,7 +157,7 @@ class ScanResult(BaseModel):
     target: str = Field(..., description="Cible scannée")
     start_time: datetime = Field(default_factory=datetime.utcnow, description="Heure de début")
     end_time: Optional[datetime] = Field(None, description="Heure de fin")
-    hosts_found: List[str] = Field(default_factory=list, description="Liste des IPs découvertes")
+    hosts_found: List[Any] = Field(default_factory=list, description="Liste des hôtes découverts (strings IPs legacy ou dicts complets)")
     status: ScanStatus = Field(default=ScanStatus.PENDING, description="Statut du scan")
 
     model_config = {
@@ -168,7 +168,10 @@ class ScanResult(BaseModel):
                     "target": "192.168.2.0/24",
                     "start_time": "2026-06-03T10:00:00Z",
                     "end_time": "2026-06-03T10:05:00Z",
-                    "hosts_found": ["192.168.2.1", "192.168.2.100", "192.168.2.200"],
+                    "hosts_found": [
+                        {"ip_address": "192.168.2.1", "hostname": "gateway.local", "os_detection": "Linux 5.4", "status": "up"},
+                        {"ip_address": "192.168.2.100", "hostname": "webserver.local", "os_detection": "Ubuntu 22.04", "status": "up"}
+                    ],
                     "status": "completed"
                 }
             ]

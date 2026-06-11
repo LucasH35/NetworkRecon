@@ -691,6 +691,7 @@ class TestFullWorkflow:
             port_result.hosts = [
                 MagicMock(
                     ip="192.168.2.1",
+                    hostname="gateway.local",
                     os_guess="Linux 5.15",
                     ports=[
                         MagicMock(port=22, protocol="tcp", state="open", service="ssh", version="OpenSSH 8.9"),
@@ -699,6 +700,7 @@ class TestFullWorkflow:
                 ),
                 MagicMock(
                     ip="192.168.2.10",
+                    hostname="webserver.local",
                     os_guess="Linux 5.4",
                     ports=[
                         MagicMock(port=22, protocol="tcp", state="open", service="ssh", version="OpenSSH 8.4"),

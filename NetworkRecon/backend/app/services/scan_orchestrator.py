@@ -458,7 +458,25 @@ class ScanOrchestrator:
                     target=target.ip_range,
                     start_time=campaign.created_at,
                     end_time=datetime.utcnow(),
-                    hosts_found=[h.ip_address for h in all_hosts],
+                    hosts_found=[
+                        {
+                            "ip_address": h.ip_address,
+                            "hostname": h.hostname or "",
+                            "os_detection": h.os_detection or "",
+                            "status": h.status or "up",
+                            "ports": [
+                                {
+                                    "number": p.number,
+                                    "protocol": p.protocol,
+                                    "state": p.state,
+                                    "service": p.service or "",
+                                    "version": p.version or "",
+                                }
+                                for p in h.ports
+                            ],
+                        }
+                        for h in all_hosts
+                    ],
                     status=ScanStatus.COMPLETED,
                 )
                 for target in campaign.targets
@@ -682,10 +700,11 @@ class ScanOrchestrator:
         ports_range = campaign.config.ports_range
 
         # Détermination des arguments nmap
+        # Ajout de -O -sV pour détecter l'OS et le hostname à chaque scan
         if scan_type == ScanScanType.QUICK:
-            nmap_args = "-sT --top-ports 1000 -T4"
+            nmap_args = "-sT --top-ports 1000 -T4 -O -sV"
         elif scan_type == ScanScanType.STEALTH:
-            nmap_args = "-sS -T2 --top-ports 100"
+            nmap_args = "-sS -T2 --top-ports 100 -O -sV"
         else:  # FULL
             nmap_args = "-sV -sC -O"
 
@@ -716,6 +735,9 @@ class ScanOrchestrator:
                     ]
                     if scanned_host.os_guess:
                         host.os_detection = scanned_host.os_guess
+                    # Mettre à jour le hostname si nmap a résolu un nom
+                    if scanned_host.hostname:
+                        host.hostname = scanned_host.hostname
 
                 return host
 
