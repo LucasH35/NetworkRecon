@@ -62,6 +62,22 @@ services:
     networks:
       - networkrecon-public
 
+  target-lab:
+    build:
+      context: ./target-machine
+      dockerfile: Dockerfile
+    container_name: target-lab
+    hostname: target-lab
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - networkrecon-internal
+    ports:
+      - "8080:80"
+      - "2222:22"
+      - "3307:3306"
+
 volumes:
   mongo_data:
     driver: local
@@ -71,6 +87,5 @@ volumes:
 networks:
   networkrecon-internal:
     driver: bridge
-    internal: true
   networkrecon-public:
     driver: bridge
