@@ -23,6 +23,20 @@
         .badge-blue { background: #1e3a5f; color: #93c5fd; }
         .badge-green { background: #14532d; color: #86efac; }
         footer { text-align: center; padding: 2rem 0; color: #475569; font-size: 0.85rem; border-top: 1px solid #1e293b; margin-top: 2rem; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: #94a3b8; font-size: 0.9rem; }
+        .form-group input, .form-group textarea { width: 100%; padding: 0.75rem; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; font-size: 0.95rem; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #38bdf8; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-success { background: #22c55e; color: white; }
+        .btn-success:hover { background: #16a34a; }
+        .result { margin-top: 1rem; padding: 1rem; background: #0f172a; border-radius: 8px; display: none; }
+        .result.show { display: block; }
+        .result pre { white-space: pre-wrap; word-break: break-all; color: #a5f3fc; font-size: 0.85rem; }
     </style>
 </head>
 <body>
@@ -40,6 +54,50 @@
             <span class="endpoint"><span class="method">MySQL</span> — Port 3306 (MySQL 8.0)</span>
         </div>
 
+        <!-- Login Form - SQL Injection -->
+        <div class="card vuln">
+            <h2>Connexion <span class="badge badge-red">SQL Injection</span></h2>
+            <form id="login-form" action="/api/login" method="POST">
+                <div class="form-group">
+                    <label for="username">Nom d'utilisateur</label>
+                    <input type="text" id="username" name="username" placeholder="Entrez votre identifiant" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="password">Mot de passe</label>
+                    <input type="password" id="password" name="password" placeholder="Entrez votre mot de passe">
+                </div>
+                <button type="submit" class="btn btn-danger">Se connecter</button>
+            </form>
+            <div id="login-result" class="result"><pre></pre></div>
+        </div>
+
+        <!-- User Search Form - SQL Injection -->
+        <div class="card vuln">
+            <h2>Recherche Utilisateurs <span class="badge badge-red">SQL Injection</span></h2>
+            <form id="search-form" action="/api/users" method="GET">
+                <div class="form-group">
+                    <label for="search">Rechercher un utilisateur</label>
+                    <input type="text" id="search" name="search" placeholder="Entrez un nom d'utilisateur" autocomplete="off">
+                </div>
+                <button type="submit" class="btn btn-primary">Rechercher</button>
+            </form>
+            <div id="search-result" class="result"><pre></pre></div>
+        </div>
+
+        <!-- Articles Form -->
+        <div class="card">
+            <h2>Articles <span class="badge badge-blue">IDOR</span></h2>
+            <form id="article-form" action="/api/articles" method="GET">
+                <div class="form-group">
+                    <label for="article_id">ID de l'article</label>
+                    <input type="number" id="article_id" name="article_id" placeholder="Entrez l'ID (1-10)" min="1" max="10">
+                </div>
+                <button type="submit" class="btn btn-primary">Chercher l'article</button>
+            </form>
+            <div id="article-result" class="result"><pre></pre></div>
+        </div>
+
+        <!-- API Endpoints List -->
         <div class="card vuln">
             <h2>API Endpoints <span class="badge badge-red">Vulnérable</span></h2>
             <span class="endpoint"><span class="method">GET</span>  /api/users?search=  <span class="badge badge-red">SQL Injection</span></span>
@@ -63,5 +121,70 @@
             Target Lab — Machine de démonstration pour NetworkRecon
         </footer>
     </div>
+
+    <script>
+        // Login form handler
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const resultDiv = document.getElementById('login-result');
+            const pre = resultDiv.querySelector('pre');
+
+            try {
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData);
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                pre.textContent = JSON.stringify(result, null, 2);
+                resultDiv.classList.add('show');
+            } catch (err) {
+                pre.textContent = 'Erreur: ' + err.message;
+                resultDiv.classList.add('show');
+            }
+        });
+
+        // Search form handler
+        document.getElementById('search-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const resultDiv = document.getElementById('search-result');
+            const pre = resultDiv.querySelector('pre');
+
+            try {
+                const formData = new FormData(form);
+                const params = new URLSearchParams(formData);
+                const response = await fetch('/api/users?' + params.toString());
+                const result = await response.json();
+                pre.textContent = JSON.stringify(result, null, 2);
+                resultDiv.classList.add('show');
+            } catch (err) {
+                pre.textContent = 'Erreur: ' + err.message;
+                resultDiv.classList.add('show');
+            }
+        });
+
+        // Article form handler
+        document.getElementById('article-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const resultDiv = document.getElementById('article-result');
+            const pre = resultDiv.querySelector('pre');
+
+            try {
+                const articleId = document.getElementById('article_id').value || '1';
+                const response = await fetch('/api/articles/' + articleId);
+                const result = await response.json();
+                pre.textContent = JSON.stringify(result, null, 2);
+                resultDiv.classList.add('show');
+            } catch (err) {
+                pre.textContent = 'Erreur: ' + err.message;
+                resultDiv.classList.add('show');
+            }
+        });
+    </script>
 </body>
 </html>
