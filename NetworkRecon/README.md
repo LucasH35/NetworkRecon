@@ -1,198 +1,226 @@
 # NetworkRecon
 
-**Outil de reconnaissance réseau asynchrone** basé sur FastAPI, MongoDB et nmap.
+**Outil de reconnaissance réseau asynchrone** pour l'analyse de sécurité offensive.
 
-NetworkRecon permet de scanner des réseaux, d'identifier les services, de détecter les vulnérabilités et de mapper les résultats vers le framework MITRE ATT&CK. L'interface web offre un tableau de bord interactif pour visualiser les campagnes, les hôtes découverts et les risques associés.
+NetworkRecon scanne les réseaux, identifie les services, détecte les vulnérabilités et mappe les résultats vers le framework **MITRE ATT&CK**. Le projet inclut une machine cible vulnérable (`target-lab`) pour tester les attaques (brute force, SQLMap).
 
-> **Avertissement** : Cet outil est conçu pour un usage légal uniquement. Assurez-vous d'avoir l'autorisation explicite avant de scanner un réseau.
-
----
-
-## Fonctionnalités principales
-
-- **Scan réseau asynchrone** — Découverte d'hôtes, scan de ports et détection de services via nmap
-- **Détection de vulnérabilités** — Recherche de CVE connues via l'API NVD (NIST)
-- **Mapping MITRE ATT&CK** — Association automatique des services/vulnérabilités aux techniques d'attaque
-- **Tests d'authentification** — Campagnes de brute force contrôlées (SSH, FTP, SMB, RDP, etc.)
-- **Génération de rapports** — Export en JSON, CSV, HTML et PDF
-- **Tableau de bord** — Statistiques en temps réel, répartition des vulnérabilités par sévérité
-- **Architecture async** — Backend FastAPI avec Motor (MongoDB async) pour des performances optimales
+> **Avertissement** : Cet outil est conçu pour un usage éducatif et légal uniquement. Ne jamais scanner un réseau sans autorisation explicite.
 
 ---
 
-## Architecture technique
+## Objectif du projet
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        NetworkRecon                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
-│  │   Frontend   │    │    Backend   │    │   MongoDB    │      │
-│  │   (Nginx)    │───▶│   (FastAPI)  │───▶│   (Mongo 7)  │      │
-│  │  Port 3000   │    │  Port 8000   │    │  Port 27017  │      │
-│  └──────────────┘    └──────┬───────┘    └──────────────┘      │
-│                             │                                   │
-│                    ┌────────┼────────┐                          │
-│                    │        │        │                          │
-│              ┌─────▼───┐ ┌──▼────┐ ┌▼──────────┐              │
-│              │ Scanners │ │Services│ │  Routes   │              │
-│              │ (nmap)   │ │(vulns, │ │ (API)     │              │
-│              │          │ │ MITRE, │ │           │              │
-│              └──────────┘ │ auth)  │ └───────────┘              │
-│                           └────────┘                            │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│  Réseau: networkrecon-internal (bridge) │ networkrecon-public   │
-└─────────────────────────────────────────────────────────────────┘
-```
+Développer un outil de reconnaissance réseau complet conteneurisé avec Docker, capable de :
+
+1. **Scanner** des réseaux et découvrir les hôtes actifs
+2. **Identifier** les services et versions (SSH, HTTP, MySQL, etc.)
+3. **Détecter** les vulnérabilités connues (CVE)
+4. **Mapper** les résultats vers les techniques MITRE ATT&CK
+5. **Tester** la robustesse des mots de passe (brute force)
+6. **Analyser** les injections SQL via SQLMap
+7. **Générer** des rapports de audit complets
 
 ---
 
 ## Prérequis
 
-| Composant | Version minimale | Usage |
-|-----------|-----------------|-------|
-| Python    | 3.11+           | Backend FastAPI |
-| Docker    | 24.0+           | Conteneurisation (recommandé) |
-| Docker Compose | 2.20+    | Orchestration des services |
-| nmap      | 7.80+           | Scan réseau |
-| MongoDB   | 7.0+            | Base de données (fournie via Docker) |
+| Composant | Version minimale | Installation |
+|-----------|-----------------|--------------|
+| Docker | 20.10+ | [docker.com](https://docs.docker.com/get-docker/) |
+| Docker Compose | 2.0+ | Inclus avec Docker Desktop |
+| Git | 2.0+ | [git-scm.com](https://git-scm.com/) |
+
+**Espace disque** : ~2 Go (images Docker)
+**RAM** : 4 Go minimum recommandés
 
 ---
 
-## Installation
+## Installation et lancement
 
-### Via Docker Compose (recommandé)
+### 1. Cloner le dépôt
 
 ```bash
-# Cloner le dépôt
-git clone https://github.com/lucash/networkrecon.git
+git clone https://github.com/LucasH35/NetworkRecon.git
 cd NetworkRecon
+```
 
-# Copier le fichier d'environnement
-cp .env.example .env
+### 2. Lancer l'ensemble des services
 
-# Modifier les identifiants par défaut
-# IMPORTANT: Changer MONGODB_INITDB_ROOT_PASSWORD et SECRET_KEY
-nano .env
+```bash
+docker compose up -d
+```
 
-# Lancer l'ensemble des services
-docker compose up --build -d
+### 3. Vérifier le démarrage
 
-# Vérifier le statut des conteneurs
+```bash
 docker compose ps
 ```
 
-### En mode développement local
+**Résultat attendu** : 4 conteneurs en état `Up` ou `healthy`
 
-```bash
-# Backend
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-
-# Frontend ( nécessite Node.js )
-cd frontend
-npx http-server src -p 3000
-```
+| Conteneur | Port | Description |
+|-----------|------|-------------|
+| networkrecon-frontend | 3000 | Interface web |
+| networkrecon-backend | 8000 | API REST |
+| networkrecon-mongo | 27017 | Base de données |
+| target-lab | 8080, 2222, 3307 | Machine cible vulnérable |
 
 ---
 
-## Configuration
-
-Copiez `.env.example` en `.env` et configurez les variables :
-
-```bash
-# MongoDB
-MONGODB_INITDB_ROOT_USERNAME=admin
-MONGODB_INITDB_ROOT_PASSWORD=<mot_de_passe_complexe>
-MONGODB_DATABASE=networkrecon
-
-# Backend
-API_HOST=0.0.0.0
-API_PORT=8000
-SECRET_KEY=<clé_secrète_aleatoire>
-
-# Application
-APP_ENV=development
-DEBUG=true
-
-# CORS
-CORS_ORIGINS=["http://localhost:3000"]
-
-# Scan
-SCAN_TIMEOUT=300
-MAX_CONCURRENT_SCANS=5
-```
-
-| Variable | Description | Défaut |
-|----------|-------------|--------|
-| `MONGODB_INITDB_ROOT_USERNAME` | Utilisateur root MongoDB | `admin` |
-| `MONGODB_INITDB_ROOT_PASSWORD` | Mot de passe root MongoDB | — |
-| `MONGODB_DATABASE` | Nom de la base de données | `networkrecon` |
-| `SECRET_KEY` | Clé secrète pour les sessions | — |
-| `SCAN_TIMEOUT` | Timeout des scans (secondes) | `300` |
-| `MAX_CONCURRENT_SCANS` | Scans simultanés max | `5` |
-
----
-
-## Utilisation
-
-### 1. Lancer l'application
-
-```bash
-docker compose up --build
-```
-
-### 2. Accéder aux interfaces
+## Accès aux interfaces
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| Frontend | http://localhost:3000 | Interface web interactive |
-| API Docs | http://localhost:8000/docs | Swagger UI (OpenAPI) |
-| ReDoc | http://localhost:8000/redoc | Documentation API |
-| Health | http://localhost:8000/health | Vérification de santé |
+| **Frontend** | http://localhost:3000 | Interface web principale |
+| **API Docs** | http://localhost:8000/docs | Swagger UI (test API) |
+| **Target Lab** | http://localhost:8080 | Page de la machine cible |
 
-### 3. Créer une campagne de scan
+---
 
-```bash
-# Exemple : scan complet de la plage 192.168.2.0/24
-curl -X POST "http://localhost:8000/api/scans/?name=Scan+LAN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "targets": [
-      {
-        "ip_range": "192.168.2.0/24",
-        "authorized": true,
-        "target_list": []
-      }
-    ],
-    "config": {
-      "scan_type": "full",
-      "ports_range": "1-1024,8080,8443",
-      "timeout": 600,
-      "rate_limit": 1000
-    }
-  }'
+## Procédure de test
+
+### Test 1 : Scan réseau
+
+1. Ouvrir http://localhost:3000
+2. Cliquer sur **"Nouveau scan"**
+3. Configurer :
+   - Nom : `Test target-lab`
+   - Cible : **`target-lab`** (ou `172.19.0.2`)
+   - Type : **QUICK**
+4. Cliquer sur **"Lancer le scan"**
+5. Attendre la fin du scan (~30 secondes)
+
+**Résultat attendu** :
+- 1 hôte découvert (`target-lab`)
+- 3 ports ouverts : 22 (SSH), 80 (HTTP), 3306 (MySQL)
+- Système d'exploitation : Ubuntu 22.04
+
+### Test 2 : Détection de vulnérabilités
+
+1. Aller dans **"Hôtes découverts"**
+2. Cliquer sur `target-lab`
+3. Onglet **"Vulnérabilités"**
+
+**Résultat attendu** :
+- Plusieurs CVE détectés (OpenSSH, Nginx, MySQL)
+- Sévérités : Critical, High, Medium, Low
+
+### Test 3 : Brute Force SSH
+
+1. Onglet **"Attaque des services"**
+2. Service SSH (port 22) : cliquer **"Attaquer"**
+3. Configurer : durée max 60 secondes
+4. Lancer l'attaque
+
+**Résultat attendu** :
+- Credentials trouvés : `root:target2025`, `admin:admin2025`
+- Statistiques : tentatives, succès, échecs
+
+### Test 4 : SQLMap (injection SQL)
+
+1. Onglet **"Attaque des services"**
+2. Service HTTP (port 80) : cliquer **"SQLMap"**
+3. Configurer : Level 2, Risk 1, Forms activé
+4. Lancer le scan
+
+**Résultat attendu** :
+- Injections SQL détectées sur `/api/users` et `/api/login`
+- Bases de données découvertes : `webapp`
+- Tables : `users`, `articles`, `settings`
+
+### Test 5 : Mapping MITRE ATT&CK
+
+1. Onglet **"MITRE ATT&CK"**
+
+**Résultat attendu** :
+- Techniques associées aux services détectés
+- Tactiques : Reconnaissance, Initial Access, Credential Access
+
+### Test 6 : Génération de rapport
+
+1. Cliquer sur **"Rapport"**
+2. Télécharger le fichier `.doc`
+
+**Résultat attendu** :
+- Document Word avec 7 sections :
+  1. Informations machine
+  2. Services découverts
+  3. Vulnérabilités
+  4. Credentials trouvés
+  5. SQLMap - Injections SQL
+  6. Cyber Kill Chain
+  7. MITRE ATT&CK détail
+
+---
+
+## Résultats attendus
+
+### Dashboard
+
+```
+Hôtes découverts : 1
+Ports ouverts : 3
+Vulnérabilités : 15+
+Techniques MITRE : 10+
 ```
 
-### 4. Consulter les résultats
+### Host `target-lab`
+
+| Paramètre | Valeur |
+|-----------|--------|
+| IP | 172.19.0.2 |
+| Hostname | target-lab |
+| OS | Ubuntu 22.04 |
+| Ports | 22 (SSH), 80 (HTTP), 3306 (MySQL) |
+
+### Services détectés
+
+| Port | Service | Version |
+|------|---------|---------|
+| 22 | SSH | OpenSSH 8.9 |
+| 80 | HTTP | Nginx 1.18 + Flask |
+| 3306 | MySQL | MySQL 8.0 |
+
+### Credentials valides
+
+| Utilisateur | Mot de passe | Rôle |
+|-------------|--------------|------|
+| root | target2025 | Admin SSH |
+| admin | admin2025 | Admin webapp |
+| deploy | deploy2025 | Utilisateur |
+| webapp | webapp2025 | Utilisateur |
+
+### Vulnérabilités SQL détectées
+
+| Endpoint | Type | Paramètre |
+|----------|------|-----------|
+| `/api/users?search=` | SQL Injection | `search` |
+| `/api/login` | SQL Injection | `username`, `password` |
+
+---
+
+## Commandes Docker utiles
 
 ```bash
-# Statistiques globales
-curl http://localhost:8000/api/dashboard/stats
+# Démarrer
+docker compose up -d
 
-# Liste des hôtes découverts
-curl http://localhost:8000/api/hosts/?limit=10
+# Arrêter
+docker compose down
 
-# Vulnérabilités critiques
-curl "http://localhost:8000/api/vulnerabilities/?severity=critical"
+# Rebuild complet
+docker compose up -d --build
 
-# Mapping MITRE ATT&CK
-curl http://localhost:8000/api/mitre/techniques
+# Voir les logs
+docker compose logs -f backend
+docker compose logs -f target-lab
+
+# Vérifier les conteneurs
+docker compose ps
+
+# Accéder à un conteneur
+docker exec -it target-lab bash
+docker exec -it networkrecon-backend bash
 ```
 
 ---
@@ -201,154 +229,42 @@ curl http://localhost:8000/api/mitre/techniques
 
 ```
 NetworkRecon/
-├── backend/
+├── backend/                    # API FastAPI (Python)
 │   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py              # Point d'entrée FastAPI
-│   │   ├── config.py            # Configuration (Pydantic Settings)
-│   │   ├── models/              # Modèles Pydantic
-│   │   │   ├── scan.py          # Campagnes, résultats de scan
-│   │   │   ├── host.py          # Hôtes et ports
-│   │   │   ├── vulnerability.py # CVE, sévérités
-│   │   │   ├── mitre.py         # Mapping MITRE ATT&CK
-│   │   │   ├── auth_test.py     # Tests d'authentification
-│   │   │   ├── report.py        # Rapports
-│   │   │   └── network.py       # Plages réseau
-│   │   ├── routes/              # Routes API (FastAPI Router)
-│   │   │   ├── scans.py         # CRUD campagnes + lifecycle
-│   │   │   ├── hosts.py         # Détails hôtes, ports, vulns
-│   │   │   ├── vulnerabilities.py # CVE lookup, summary
-│   │   │   ├── mitre.py         # Techniques, tactiques, STIX
-│   │   │   ├── auth_tests.py    # Campagnes de test
-│   │   │   ├── reports.py       # Génération, export
-│   │   │   ├── dashboard.py     # Statistiques
-│   │   │   └── network.py       # Plages réseau
-│   │   ├── services/            # Logique métier
-│   │   │   ├── scan_service.py  # Orchestration des scans
-│   │   │   ├── host_service.py  # Gestion des hôtes
-│   │   │   ├── vulnerability_scanner.py # Scan de vulnérabilités
-│   │   │   ├── mitre_mapper.py  # Mapping MITRE ATT&CK
-│   │   │   ├── auth_tester.py   # Tests d'authentification
-│   │   │   ├── report_generator.py # Génération de rapports
-│   │   │   └── network_service.py  # Gestion réseau
-│   │   ├── scanners/            # Modules de scan
-│   │   │   ├── nmap_scanner.py  # Wrapper nmap
-│   │   │   ├── banner_grabber.py # Récupération de bannières
-│   │   │   └── service_identifier.py # Identification de services
-│   │   └── utils/
-│   │       └── database.py      # Connexion MongoDB
-│   ├── tests/                   # Tests unitaires
-│   ├── requirements.txt
+│   │   ├── main.py            # Point d'entrée
+│   │   ├── models/            # Modèles Pydantic
+│   │   ├── routes/            # Routes API
+│   │   ├── services/          # Logique métier
+│   │   └── scanners/          # Modules nmap
+│   ├── tests/                 # Tests unitaires
 │   └── Dockerfile
-├── frontend/
+├── frontend/                   # SPA ( vanilla JS + Tailwind)
 │   ├── src/
-│   │   ├── index.html           # Page principale
-│   │   ├── css/style.css        # Styles
-│   │   └── js/
-│   │       ├── app.js           # Application principale
-│   │       ├── api.js           # Client API
-│   │       ├── dashboard.js     # Tableau de bord
-│   │       ├── campaigns.js     # Gestion des campagnes
-│   │       ├── hosts.js         # Liste des hôtes
-│   │       ├── vulnerabilities.js # Vulnérabilités
-│   │       ├── mitre.js         # Mapping MITRE
-│   │       ├── auth-tests.js    # Tests d'auth
-│   │       └── reports.js       # Rapports
-│   ├── nginx.conf
+│   │   ├── index.html
+│   │   └── js/                # Modules JS
 │   └── Dockerfile
-├── docs/                        # Documentation
-│   ├── INSTALLATION.md
-│   ├── API.md
-│   ├── ARCHITECTURE.md
-│   └── MITRE_MAPPING.md
-├── docker-compose.yml
-├── .env.example
-├── .gitignore
-├── CONTRIBUTING.md
-├── LICENSE
-└── README.md
+├── target-machine/             # Machine cible vulnérable
+│   ├── app/                   # Flask (API vulnérable)
+│   ├── mysql/                 # Seed BDD
+│   ├── ssh/                   # Config SSH
+│   └── Dockerfile
+├── docker-compose.yml          # Orchestration 4 services
+└── .env                        # Configuration
 ```
 
 ---
 
-## Résumé des endpoints API
+## Technologies utilisées
 
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| **Scans** | | |
-| `GET` | `/api/scans/` | Lister les campagnes |
-| `POST` | `/api/scans/` | Créer une campagne |
-| `GET` | `/api/scans/{id}` | Détails d'une campagne |
-| `GET` | `/api/scans/{id}/status` | Statut temps réel |
-| `POST` | `/api/scans/{id}/pause` | Pause |
-| `POST` | `/api/scans/{id}/resume` | Reprise |
-| `POST` | `/api/scans/{id}/cancel` | Annulation |
-| `DELETE` | `/api/scans/{id}` | Suppression |
-| **Hosts** | | |
-| `GET` | `/api/hosts/` | Lister les hôtes |
-| `GET` | `/api/hosts/{ip}` | Détails d'un hôte |
-| `GET` | `/api/hosts/{ip}/ports` | Ports ouverts |
-| `GET` | `/api/hosts/{ip}/vulnerabilities` | Vulnérabilités |
-| `GET` | `/api/hosts/{ip}/mitre` | Mappings MITRE |
-| **Vulnérabilités** | | |
-| `GET` | `/api/vulnerabilities/` | Lister les vulns |
-| `GET` | `/api/vulnerabilities/summary` | Résumé par sévérité |
-| `GET` | `/api/vulnerabilities/{cve_id}` | Détail d'une CVE |
-| `POST` | `/api/vulnerabilities/lookup` | Recherche CVE |
-| **MITRE ATT&CK** | | |
-| `GET` | `/api/mitre/tactics` | Lister les tactiques |
-| `GET` | `/api/mitre/techniques` | Lister les techniques |
-| `GET` | `/api/mitre/techniques/{id}` | Détail d'une technique |
-| `GET` | `/api/mitre/attack-paths` | Parcours d'attaque |
-| `GET` | `/api/mitre/export/stix` | Export STIX 2.1 |
-| **Auth Tests** | | |
-| `POST` | `/api/auth-tests/` | Lancer une campagne |
-| `GET` | `/api/auth-tests/` | Lister les campagnes |
-| `GET` | `/api/auth-tests/{id}` | Résultats |
-| `POST` | `/api/auth-tests/credentials` | Uploader credentials |
-| **Reports** | | |
-| `POST` | `/api/reports/generate` | Générer un rapport |
-| `GET` | `/api/reports/{id}` | Récupérer un rapport |
-| `GET` | `/api/reports/{id}/export/{format}` | Exporter |
-| **Dashboard** | | |
-| `GET` | `/api/dashboard/stats` | Statistiques globales |
-| `GET` | `/api/dashboard/severity-distribution` | Répartition sévérités |
-| `GET` | `/api/dashboard/top-vulns` | Top vulnérabilités |
-| `GET` | `/api/dashboard/network-overview` | Vue réseau |
-
----
-
-## Screenshots
-
-<!-- Ajouter des captures d'écran ici -->
-
-- **Tableau de bord** : Vue d'ensemble avec statistiques et graphiques
-- **Campagne de scan** : Détails d'un scan en cours sur 192.168.2.0/24
-- **Hôtes découverts** : Liste des hôtes avec ports et services
-- **Vulnérabilités** : Tableau des CVE avec sévérités et recommandations
-- **MITRE ATT&CK** : Matrice des techniques identifiées
-
----
-
-## Roadmap
-
-### v0.2.0 (en cours)
-- [ ] Authentification JWT avec rôles
-- [ ] WebSocket pour les mises à jour en temps réel
-- [ ] Scan asynchrone avec file d'attente (Celery/Redis)
-- [ ] Export PDF avec graphiques
-
-### v0.3.0
-- [ ] Scan de vulnérabilités actif (Nuclei)
-- [ ] Intégration Shodan/Censys
-- [ ] Système d'alertes et notifications
-- [ ] API GraphQL
-
-### v0.4.0
-- [ ] Multi-utilisateurs avec permissions granulaires
-- [ ] Scheduling de scans récurrents
-- [ ] Intégration SIEM (Splunk, ELK)
-- [ ] Dashboard personnalisable
+| Composant | Technologie | Version |
+|-----------|-------------|---------|
+| Backend | Python + FastAPI | 3.11 |
+| Frontend | Vanilla JS + Tailwind CSS | - |
+| Base de données | MongoDB | 4.4 |
+| Scan réseau | nmap | 7.95 |
+| SQL injection | SQLMap | 1.10 |
+| Machine cible | Ubuntu + Flask + MySQL | 22.04 |
+| Conteneurisation | Docker + Docker Compose | - |
 
 ---
 
@@ -360,10 +276,4 @@ Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de 
 
 ## Auteurs
 
-- **Lucash** — Développeur principal — [GitHub](https://github.com/lucash)
-
----
-
-## Contribution
-
-Consultez le guide de contribution dans [CONTRIBUTING.md](CONTRIBUTING.md) pour参与 au projet.
+- **Lucash** — Développeur principal
