@@ -25,6 +25,10 @@ services:
       dockerfile: Dockerfile
     container_name: networkrecon-backend
     restart: unless-stopped
+    user: root
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
     ports:
       - "${API_PORT:-8000}:8000"
     env_file:

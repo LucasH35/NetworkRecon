@@ -122,6 +122,22 @@ const Router = {
 // ===================== UI Functions =====================
 
 /**
+ * Update scan command preview based on scan type selection
+ */
+function updateScanCommand(scanType) {
+    const preview = document.getElementById('scan-command-preview');
+    if (!preview) return;
+
+    const commands = {
+        'quick': 'nmap -sT --top-ports 1000 -T4 -O -sV &lt;cible&gt;',
+        'stealth': 'nmap -sS -T2 --top-ports 100 -O -sV &lt;cible&gt;',
+        'full': 'nmap -sV -sC -O &lt;cible&gt;'
+    };
+
+    preview.innerHTML = commands[scanType] || commands['quick'];
+}
+
+/**
  * Toggle sidebar on mobile
  */
 function toggleSidebar() {
